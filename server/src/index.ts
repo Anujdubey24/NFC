@@ -20,7 +20,7 @@ async function main(): Promise<void> {
       if (userCount === 0) {
         logger.info('Database is empty: Seeding demo organization & accounts...');
         await seedDatabase(true);
-        logger.info('Demo data seeded: admin@Eskills.com (Password: Test@123)');
+        logger.info('Demo data seeded: admin@gmail.com (Password: anuj@2416)');
       }
     } catch (seedErr) {
       logger.warn({ seedErr }, 'Optional demo seeding was skipped or encountered an error');
