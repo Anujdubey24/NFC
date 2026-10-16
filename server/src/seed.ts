@@ -1,3 +1,4 @@
+
 import mongoose from 'mongoose';
 import { connectDb, disconnectDb } from './database/connection.js';
 import { Organization } from './modules/organizations/organization.model.js';
@@ -6,9 +7,22 @@ import { hashPassword } from './modules/auth/auth.tokens.js';
 import { NFCBand } from './modules/bands/band.model.js';
 import { AccessRule } from './modules/access/access.models.js';
 import { NFCDevice } from './modules/devices/device.model.js';
-import { Gate, Location, Zone } from './modules/locations/location.models.js';
+import {
+  Gate,
+  Location,
+  Zone,
+} from './modules/locations/location.models.js';
 
 export async function seedDatabase(silent = false): Promise<void> {
+  const db = mongoose.connection.db;
+
+  if (!db) {
+    throw new Error('No active MongoDB database connection.');
+  }
+
+  console.log('Connected database:', db.databaseName);
+  console.log('MongoDB host:', mongoose.connection.host);
+
   const org = await Organization.findOneAndUpdate(
     { slug: 'gmail' },
     {
@@ -21,50 +35,91 @@ export async function seedDatabase(silent = false): Promise<void> {
     },
     { upsert: true, new: true },
   );
+
   const orgId = org._id as mongoose.Types.ObjectId;
   const passwordHash = await hashPassword('anuj@2416');
-  const staff: Array<{ email: string; firstName: string; lastName: string; role: string }> = [
+
+  const staff = [
     { email: 'admin@gmail.com', firstName: 'Anuj', lastName: 'Dubey', role: 'ADMIN' },
     { email: 'manager@gmail.com', firstName: 'Akash', lastName: 'Nayak', role: 'MANAGER' },
     { email: 'operator@gmail.com', firstName: 'Jatin', lastName: 'kadam', role: 'OPERATOR' },
     { email: 'security@gmail.com', firstName: 'Rohit', lastName: 'Singh Thakur', role: 'SECURITY' },
     { email: 'finance@gmail.com', firstName: 'Yogendra', lastName: 'Dewada', role: 'FINANCE' },
   ];
+
   const users: Record<string, mongoose.Types.ObjectId> = {};
+
   for (const s of staff) {
-    const u = await User.findOneAndUpdate(
+    const user = await User.findOneAndUpdate(
       { organizationId: orgId, email: s.email },
-      { $setOnInsert: { ...s, organizationId: orgId, passwordHash, status: 'ACTIVE' } },
+      {
+        $setOnInsert: {
+          ...s,
+          organizationId: orgId,
+          passwordHash,
+          status: 'ACTIVE',
+        },
+      },
       { upsert: true, new: true },
     );
-    users[s.role] = u._id as mongoose.Types.ObjectId;
+
+    users[s.role] = user._id as mongoose.Types.ObjectId;
   }
-  // A few students who hold bands.
+
   const students = [
     { email: 'anuj@gmail.com', firstName: 'Anuj', lastName: 'Dubey' },
     { email: 'akash@gmail.com', firstName: 'Akash', lastName: 'Nayak' },
     { email: 'jatin@gmail.com', firstName: 'Jatin', lastName: 'Kadam' },
   ];
+
   const studentIds: mongoose.Types.ObjectId[] = [];
+
   for (const s of students) {
-    const u = await User.findOneAndUpdate(
+    const user = await User.findOneAndUpdate(
       { organizationId: orgId, email: s.email },
-      { $setOnInsert: { ...s, organizationId: orgId, passwordHash, role: 'VIEWER', status: 'ACTIVE' } },
+      {
+        $setOnInsert: {
+          ...s,
+          organizationId: orgId,
+          passwordHash,
+          role: 'VIEWER',
+          status: 'ACTIVE',
+        },
+      },
       { upsert: true, new: true },
     );
-    studentIds.push(u._id as mongoose.Types.ObjectId);
+
+    studentIds.push(user._id as mongoose.Types.ObjectId);
   }
 
   const loc = await Location.findOneAndUpdate(
     { organizationId: orgId, code: 'MAIN' },
-    { $setOnInsert: { organizationId: orgId, name: 'Main Campus', code: 'MAIN', type: 'CAMPUS', status: 'ACTIVE' } },
+    {
+      $setOnInsert: {
+        organizationId: orgId,
+        name: 'Main Campus',
+        code: 'MAIN',
+        type: 'CAMPUS',
+        status: 'ACTIVE',
+      },
+    },
     { upsert: true, new: true },
   );
+
   const zone = await Zone.findOneAndUpdate(
     { organizationId: orgId, locationId: loc._id, code: 'NORTH' },
-    { $setOnInsert: { organizationId: orgId, locationId: loc._id, name: 'North Wing', code: 'NORTH', status: 'ACTIVE' } },
+    {
+      $setOnInsert: {
+        organizationId: orgId,
+        locationId: loc._id,
+        name: 'North Wing',
+        code: 'NORTH',
+        status: 'ACTIVE',
+      },
+    },
     { upsert: true, new: true },
   );
+
   const gate = await Gate.findOneAndUpdate(
     { organizationId: orgId, locationId: loc._id, code: 'GATE-1' },
     {
@@ -80,6 +135,7 @@ export async function seedDatabase(silent = false): Promise<void> {
     },
     { upsert: true, new: true },
   );
+
   await NFCDevice.findOneAndUpdate(
     { organizationId: orgId, deviceId: 'DEV-MAIN-GATE-01' },
     {
@@ -96,6 +152,7 @@ export async function seedDatabase(silent = false): Promise<void> {
     },
     { upsert: true },
   );
+
   await AccessRule.findOneAndUpdate(
     { organizationId: orgId, name: 'Main gate open hours' },
     {
@@ -122,6 +179,7 @@ export async function seedDatabase(silent = false): Promise<void> {
     { bandId: 'NF-4823', nfcUid: '04:C9:02:77:1F:80', userIdx: undefined, status: 'AVAILABLE' },
     { bandId: 'NF-4824', nfcUid: '04:DE:AD:BE:EF:00', userIdx: 2, status: 'BLOCKED' },
   ];
+
   for (const b of bands) {
     await NFCBand.findOneAndUpdate(
       { nfcUid: b.nfcUid },
@@ -136,7 +194,10 @@ export async function seedDatabase(silent = false): Promise<void> {
           issuedAt: b.userIdx !== undefined ? new Date() : undefined,
           activatedAt: b.status === 'ACTIVE' ? new Date() : undefined,
           blockedAt: b.status === 'BLOCKED' ? new Date() : undefined,
-          blockedReason: b.status === 'BLOCKED' ? 'Seeded demo: reported lost, under review' : undefined,
+          blockedReason:
+            b.status === 'BLOCKED'
+              ? 'Seeded demo: reported lost, under review'
+              : undefined,
           assignedLocationId: loc._id,
           createdBy: users.ADMIN,
         },
@@ -145,42 +206,55 @@ export async function seedDatabase(silent = false): Promise<void> {
     );
   }
 
+  // Verify records after seeding.
+  const counts = {
+    organizations: await Organization.countDocuments({ slug: 'gmail' }),
+    users: await User.countDocuments({ organizationId: orgId }),
+    bands: await NFCBand.countDocuments({ organizationId: orgId }),
+    locations: await Location.countDocuments({ organizationId: orgId }),
+    zones: await Zone.countDocuments({ organizationId: orgId }),
+    gates: await Gate.countDocuments({ organizationId: orgId }),
+    devices: await NFCDevice.countDocuments({ organizationId: orgId }),
+    accessRules: await AccessRule.countDocuments({ organizationId: orgId }),
+  };
+
+  console.log('Seed verification:', counts);
+
+  const admin = await User.findOne(
+    { organizationId: orgId, email: 'admin@gmail.com' },
+    { email: 1, role: 1, status: 1 },
+  ).lean();
+
+  console.log('Admin account exists:', Boolean(admin));
+
   if (!silent) {
-    // eslint-disable-next-line no-console
-    console.log(`seeded ${org.slug}: admin password is anuj@2416 (4 demo bands, 1 gate, 1 device)`);
+    console.log('Seeding completed for organization:', org.slug);
   }
 }
 
-export async function wipeDatabase(silent = false): Promise<void> {
-  const db = mongoose.connection.db;
-  if (!db) throw new Error('No active DB connection to wipe');
-  await db.dropDatabase();
-  if (!silent) {
-    // eslint-disable-next-line no-console
-    console.log(`wiped database "${db.databaseName}" — all previous data deleted`);
-  }
-}
-
+// Direct execution: connect, seed, verify, and disconnect.
+// This script deliberately does not provide a database-wipe option.
+const scriptPath = process.argv[1]?.replace(/\\/g, '/');
 const isDirectRun =
-  process.argv[1]?.replace(/\\/g, '/').endsWith('seed.ts') ||
-  process.argv[1]?.replace(/\\/g, '/').endsWith('seed.js');
+  scriptPath?.endsWith('/seed.ts') ||
+  scriptPath?.endsWith('/seed.js') ||
+  scriptPath === 'seed.ts' ||
+  scriptPath === 'seed.js';
 
 if (isDirectRun) {
-  const shouldWipe = process.argv.includes('--wipe') || process.argv.includes('--clean') || process.argv.includes('--fresh');
   connectDb()
-    .then(async () => {
-      if (shouldWipe) await wipeDatabase();
-      await seedDatabase();
-    })
+    .then(() => seedDatabase())
     .then(async () => {
       await disconnectDb();
       process.exit(0);
     })
-    .catch(async (e) => {
-      // eslint-disable-next-line no-console
-      console.error(e);
-      await disconnectDb();
+    .catch(async (error) => {
+      console.error('Seeding failed:', error);
+      try {
+        await disconnectDb();
+      } catch (disconnectError) {
+        console.error('Database disconnect failed:', disconnectError);
+      }
       process.exit(1);
     });
 }
-

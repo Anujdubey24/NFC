@@ -333,3 +333,8 @@ export async function switchDatabase(
   logger.info({ mode: lastMode, uri: redactUri(target), seeded }, 'Database switched at runtime');
   return { status: getDbStatus(), seeded };
 }
+console.log('DB configuration check:', {
+  NODE_ENV: env.NODE_ENV,
+  USE_MEMORY_DB: env.USE_MEMORY_DB,
+  DB_MODE: env.DB_MODE,
+});
